@@ -1,0 +1,279 @@
+Metadata-Version: 2.1
+Name: imagetk
+Version: 0.1.3
+Summary: image toolkit
+Author: 
+Author-email: 
+Keywords: image
+Platform: any
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: numpy >=1.14.0
+Requires-Dist: pandas >=2.2.0
+Requires-Dist: scipy >=1.0.0
+Requires-Dist: scient >=0.5.0
+
+﻿
+## What is it
+
+**imagetk**是一个图像分析的Python包，用以进行图像处理、特征提取、边缘检测等。
+
+**imagetk** is a Python package providing image process, feature extraction, and edge detection.
+
+## Where to get it
+
+最新版本的源码和编译安装包可以在`Python package index`获取。
+
+The source code and binary installers for the latest released version are available at the [Python package index].
+
+https://pypi.org/project/imagetk
+
+可以用pip安装imagetk。
+
+You can install protege like this:
+    
+```
+pip install imagetk
+```
+
+也可以用`setup.py`安装。
+
+Or in the `protege` directory, execute:
+
+```
+python setup.py install
+```
+
+## How to use it
+
+### 特征提取
+
+#### brisque
+
+```
+from imagetk import feature
+import numpy
+from PIL import Image
+
+image=Image.open("test.png")#图片读取
+image = image.convert('L')#转换为灰度图
+image=numpy.array(image)#转换为numpy.array
+brisque_feature=feature.brisque(image)#brique特征计算
+```
+
+#### mean_grad
+
+```
+image=Image.open("test.png")#图片读取
+image = image.convert('L')#转换为灰度图
+image=numpy.array(image)#转换为numpy.array
+mean_grad=feature.mean_grad(image)#mean_grad计算
+```
+
+#### gray_quantile_expose
+
+```
+image=Image.open("test.png")#图片读取
+image = image.convert('L')#转换为灰度图
+image=numpy.array(image)#转换为numpy.array
+bright,dark=feature.gray_quantile_expose(image,q=0.75,pix=(96,192))#gray_quantile_expose计算
+```
+
+#### block_value_expose
+
+```
+image=Image.open("test.png")#图片读取
+image=numpy.array(image)#转换为numpy.array
+bright,dark=feature.block_value_expose(array,stride=8,channel_first=False)
+```
+
+#### cumprob
+
+```
+image=Image.open("test.png")#图片读取
+image = image.convert('L')#转换为灰度图
+image=numpy.array(image)#转换为numpy.array
+cumprob=feature.cumprob(image)
+```
+
+### 边缘检测
+
+#### sobel
+
+```
+image=Image.open("test.png")#图片读取
+image = image.convert('L')#转换为灰度图
+image=numpy.array(image)#转换为numpy.array
+edges=edge.sobel(image)
+```
+
+#### canny
+
+```
+image=Image.open("test.png")#图片读取
+image = image.convert('L')#转换为灰度图
+image=numpy.array(image)#转换为numpy.array
+edges=edge.canny(image,kernel_size=3,sigma=1)
+```
+
+#### houghline
+
+```
+from imagetk import threshold
+
+image=Image.open("test.png")#图片读取
+image = image.convert('L')#转换为灰度图
+image=numpy.array(image)#转换为numpy.array
+# 二值化处理
+thres=threshold.otsu(image)
+image[image>thres]=255
+image[image<=thres]=0
+# 边缘检测
+edge_image=edge.canny(image).astype(numpy.uint8)
+# houghline 检测
+lines=edge.houghlines(edge_image, rho=1, theta=numpy.pi/180, threshold=100)
+```
+
+### 图像查重 dedup
+
+图像查重去重模块，包括基于图像感知相似度算法的查重去重。
+
+```
+imagetk.dedup.Hash(hash_func:Callable=hash.percept,dist_func:Callable=distance.hamming,process_func:Callable=None,
+			            threshold:int=10,scale:Tuple[int,int]=None,hash_size:int=64,hash_hex:bool=False,
+			            errors:Literal['ignore','raise','coerce']='raise',
+			            suffix:Union[str,List[str]]=['JPEG', 'PNG', 'BMP', 'MPO', 'PPM', 'TIFF', 'GIF', 'WEBP', 'JPG'],
+			            n_worker:int=cpu_count())
+```
+Parameters
+----------
+* hash_func : Callable, optional
+    hash函数. The default is hash.percept.
+* dist_func : Callable, optional
+    距离度量函数. The default is distance.hamming.
+* process_func : Callable, optional
+    图像预处理函数，如果为空，采用self.process. The default is None.
+* threshold : int, optional
+    图像重复的判断阈值，根据dist_func计算距离，若距离小于threshold，判断为重复图像. The default is 10.
+* scale : Tuple[int,int], optional
+    self.process中对图像进行缩放的参数. The default is None.
+* hash_size : int, optional
+    hash值长度. The default is 64.
+* hash_hex : bool, optional
+    hash_func是否转成16进制，转成16进制可以节省存储空间. The default is False.
+* errors : str, optional
+    图像加载/查重错误时的处理方式，可选值为['ignore','raise','coerce'],'ignore'忽略文件,'raise'抛出异常,'coerce'强制转成空图像,. The default is 'raise'.
+* suffix : str or list, optional
+    可以处理的图像文件后缀名, 不区分大小写. The default is ['JPEG', 'PNG', 'BMP', 'MPO', 'PPM', 'TIFF', 'GIF', 'WEBP', 'JPG'].
+* n_worker : int, optional
+    并行处理进程数. The default is cpu_count().
+
+Returns
+-------
+None
+
+Algorithms
+-------
+图像感知相似度算法的原理参见：[python计算图像感知相似度（PHash Sim）实例](https://blog.csdn.net/bayesian1/article/details/140116555)
+
+基础用法
+-------
+
+dedup.Hash针对文件、文件夹、压缩包分别提供了两种查重方法：
+
+|  操作对象  |  查找与指定图像相似的图像  |  在指定范围内查找相似的图像  |
+|  ----  |  ----  |  ----  |
+|文件列表|find_dup_from_files(file,files)|find_dup_in_files(files,score:Dict=None)|
+|文件夹|find_dup_from_folder(file,path:str)|find_dup_in_folder(path:str,score:Dict=None)|
+|压缩包|find_dup_from_archive(file,path,mode='zipfile')|find_dup_in_archive(path,score=None,mode='zipfile')|
+
+* file: 指定图像的路径
+* files: 待查重文件路径列表
+* path: 待查重的文件夹/压缩包路径
+* score: 图像评分，类型为字典，如果提供了score，将按照score从大到小开始查重，如果某个图像与score较大的图像相似，将不再计算其它图像是否与该图像相似。
+* mode: 压缩包格式，支持zipfile和tarfile
+
+Examples
+-------
+```
+import os
+import numpy
+from imagetk import dedup
+data_path=os.path.join(os.path.dirname(dedup.__file__),'../test/data')
+
+if __name__=='__main__':
+    images=[os.path.join(data_path,i) for i in os.listdir(data_path) if i.endswith('.bmp') or i.endswith('.png') or i.endswith('.JPEG') or i.endswith('.jpg')]
+    ref_image=data_path+'/I10.BMP'
+
+    dedup_task=dedup.Hash()
+
+    #find_dup_from_files
+    dedup_task.find_dup_from_files(file=ref_image,files=images)
+	#find_dup_in_files
+    dedup_task.find_dup_in_files(files=images)
+	#find_dup_in_files score
+    score={i:numpy.random.randint(0,10) for i in images}
+    dedup_task.find_dup_in_files(files=images,score=score)
+
+	#find_dup_from_folder
+    dedup_task.find_dup_from_folder(file=ref_image,path=data_path)
+	#find_dup_in_folder
+    dedup_task.find_dup_in_folder(path=data_path)
+
+	#find_dup_from_archive zipfile
+    dedup_task.find_dup_from_archive(file=data_path+'/ILSVRC2012_val_00020553.JPEG',path=data_path+'/imagewoof_train.zip',mode='zipfile')
+	#find_dup_from_archive tarfile
+    dedup_task.find_dup_from_archive(file=data_path+'/ILSVRC2012_val_00010420.JPEG',path=data_path+'/imagewoof_val.tar.gz',mode='tarfile')
+	#find_dup_in_archive tarfile
+    dedup_task.find_dup_in_archive(path=data_path+'/imagewoof_val.tar.gz',mode='tarfile')
+```
+
+高级用法
+-------
+
+文件编码
+
+|  操作对象  |  编码  |
+|  ----  |  ----  |
+|文件|encode(image:numpy.ndarray)|
+|文件列表|encode_files(files:List)|
+|文件夹|encode_folder(path)|
+|压缩包|encode_archive(path,mode='zipfile')|
+
+对编码后的文件进行查重
+
+|  操作对象  |  查找与指定图像相似的图像  |  在指定范围内查找相似的图像  |
+|  ----  |  ----  |  ----  |
+|编码字典|find_dup_from_map(encode,encode_map:Dict=None)|find_dup_in_map(encode_map:Dict,score:Dict=None)
+
+Examples
+-------
+
+```
+import os
+import numpy
+from imagetk import dedup
+data_path=os.path.join(os.path.dirname(dedup.__file__),'../test/data')
+
+if __name__=='__main__':
+    images=[os.path.join(data_path,i) for i in os.listdir(data_path) if i.endswith('.bmp') or i.endswith('.png') or i.endswith('.JPEG') or i.endswith('.jpg')]
+    ref_image=data_path+'/I10.BMP'
+
+    dedup_task=dedup.Hash()
+
+    #encode file
+    encode=dedup_task.encode_file(ref_image)
+    #encode files
+    encode_map=dedup_task.encode_files(images)
+    #encode folder
+    dedup_task.encode_folder(data_path)
+    #encoder archive
+    dedup_task.encode_archive(data_path+'/imagewoof_train.zip',mode='zipfile')
+
+    #find_dup_from_map
+    dedup_task.find_dup_from_map(encode,encode_map)
+    #find_dup_in_map
+    dedup_task.find_dup_in_map(encode_map)
+```
+
+项目地址：[https://github.com/idealo/imagededup](https://github.com/idealo/imagededup)
