@@ -63,5 +63,18 @@ TEXTS = {
     # Teksty streamu
     'stream_inactive': "Stream nieaktywny",
     'stream_manual': "Stream na żywo",
-    'stream_auto': "Stream na żywo - Tryb automatyczny"
+    'stream_auto': "Stream na żywo - Tryb automatyczny",
+    
+    # Teksty YOLO (dodane)
+    'yolo_title': "Detekcja obiektów (YOLO)",
+    'yolo_class': "Klasa:",
+    'yolo_confidence': "Pewność:",
+    'yolo_start': "Start Auto-Śledzenie",
+    'yolo_stop': "Stop Śledzenie",
+    'yolo_status_inactive': "Status: Nieaktywny",
+    'yolo_status_active': "Śledzenie aktywne",
+    'yolo_status_stopped': "Śledzenie zatrzymane"
 }
+
+# Klasy YOLO (dodane)
+YOLO_CLASSES = ["Wszystkie", "person", "car", "cat", "dog", "bird", "bottle", "cell phone", "chair"]
