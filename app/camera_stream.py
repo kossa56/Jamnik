@@ -29,18 +29,14 @@ class CameraStream:
             start_time = time.time()
             self.app.log_to_terminal("Próba połączenia ze streamem...")
             
-            # Ustaw timeout dla OpenCV
             self.cap = cv2.VideoCapture(stream_url)
-            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Mniejszy bufor
-            
-            # Spróbuj ustawić timeout odczytu
+            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             self.cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)
             
             while not self.cap.isOpened() and (time.time() - start_time) < timeout:
                 time.sleep(0.5)
                 self.app.log_to_terminal("Oczekiwanie na stream...")
                 self.app.root.update_idletasks()
-                # Próbuj ponownie
                 self.cap = cv2.VideoCapture(stream_url)
                 self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 self.cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)
@@ -51,7 +47,6 @@ class CameraStream:
             # Sprawdź czy stream wysyła dane
             ret, frame = self.cap.read()
             if not ret:
-                # Spróbuj jeszcze raz
                 time.sleep(1)
                 ret, frame = self.cap.read()
                 
@@ -96,7 +91,7 @@ class CameraStream:
             self.update_status("Stream zatrzymany", "orange")
     
     def update_frame(self):
-        """Aktualizacja ramki wideo"""
+        """Aktualizacja ramki wideo z detekcją obiektów"""
         if not self.streaming or self.cap is None:
             return
         
@@ -107,32 +102,47 @@ class CameraStream:
             if ret:
                 self.frame_count += 1
                 
-                # Oblicz FPS co sekundę
+                # Oblicz FPS
                 elapsed = current_time - self.fps_start_time
-                if elapsed >= 1.0:  # Co sekundę
+                if elapsed >= 1.0:
                     fps = self.frame_count / elapsed if elapsed > 0 else 0
                     self.frame_count = 0
                     self.fps_start_time = current_time
                     
                     # Aktualizuj status z FPS
                     if fps > 0:
-                        self.update_status(f"Stream: {int(fps)} FPS", "green")
+                        det_count = self.app.object_detector.detection_count
+                        self.update_status(f"Stream: {int(fps)} FPS | Detekcje: {det_count}", "green")
                 
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                img = Image.fromarray(frame)
+                # Przetwórz ramkę przez detektor obiektów (jeśli aktywny)
+                processed_frame = frame.copy()
+                
+                if self.app.auto_tracking or self.app.object_detector.detecting:
+                    processed_frame, detections = self.app.object_detector.process_frame(frame)
+                    
+                    # Logowanie wykryć (co 60 klatek)
+                    if detections and self.frame_count % 60 == 0:
+                        for det in detections[:2]:
+                            self.app.log_to_terminal(
+                                f"Wykryto: {det['class_name']} ({det['confidence']:.2f})"
+                            )
+                
+                # Konwertuj do formatu PIL
+                processed_frame = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB)
+                img = Image.fromarray(processed_frame)
                 
                 # Określanie rozmiaru kontenera
                 img_width, img_height = self.app.ui_manager.get_container_size()
                 
+                # Zapisz rozmiar dla śledzenia
                 if img_width > 0 and img_height > 0:
-                    # Użyj CTkImage zamiast PIL ImageTk.PhotoImage
+                    self.app.ui_manager.last_frame_size = (img_width, img_height)
                     ctk_image = ctk.CTkImage(
                         light_image=img,
                         dark_image=img,
                         size=(img_width, img_height)
                     )
                 else:
-                    # Domyślny rozmiar
                     ctk_image = ctk.CTkImage(
                         light_image=img,
                         dark_image=img,
@@ -146,15 +156,13 @@ class CameraStream:
                 self.last_frame_time = current_time
                 
             else:
-                # Sprawdź czy stream się nie zawiesił
-                if current_time - self.last_frame_time > 3:  # 3 sekundy bez ramki
+                if current_time - self.last_frame_time > 3:
                     self.app.log_to_terminal("Stream przerwany - brak danych")
                     self.update_status("Stream przerwany", "orange")
                     self.stop()
                 return
                 
         except cv2.error as e:
-            # Błąd OpenCV - stream może być nieprawidłowy
             error_msg = str(e)
             self.app.log_to_terminal(f"Błąd OpenCV: {error_msg}")
             self.stop()
@@ -162,12 +170,10 @@ class CameraStream:
             
         except Exception as e:
             error_msg = str(e)
-            # Ignoruj błędy związane z zamknięciem aplikacji
             if "NoneType" not in error_msg and "invalid" not in error_msg:
                 self.app.log_to_terminal(f"Błąd przetwarzania ramki: {error_msg}")
-            
             self.stop()
             return
         
-        # Kontynuacja aktualizacji (30 FPS ≈ 33ms)
+        # Kontynuacja aktualizacji
         self.app.root.after(33, self.update_frame)
