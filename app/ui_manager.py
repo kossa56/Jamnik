@@ -1,7 +1,7 @@
 import customtkinter as ctk
 from PIL import Image, ImageTk
 import cv2
-from .config import COLORS, SIZES, KEY_MAPPINGS, TEXTS
+from .config import COLORS, SIZES, KEY_MAPPINGS, TEXTS, YOLO_CLASSES
 
 class UIManager:
     def __init__(self, app):
@@ -23,13 +23,26 @@ class UIManager:
         self.auto_btn = None
         self.instructions_btn = None
         
+        # Panel YOLO
+        self.yolo_panel = None
+        self.class_combobox = None
+        self.confidence_slider = None
+        self.confidence_value = None
+        self.start_tracking_btn = None
+        self.stop_tracking_btn = None
+        self.detection_label = None
+        
+        # Rozmiar ramki
+        self.last_frame_size = (640, 480)
+        
     def setup_ui(self):
         """Konfiguracja całego interfejsu użytkownika"""
         self.setup_main_container()
         self.setup_sidebar()
         self.setup_content_frame()
         self.setup_config_frame()
-        self.init_mode_frames()
+        self.setup_yolo_panel()  # Dodane przed init_modes
+        self.init_modes()
         self.setup_terminal()
         self.setup_status_bar()
         self.setup_key_bindings()
@@ -177,16 +190,128 @@ class UIManager:
             state="disabled"
         )
         self.disconnect_button.pack(side="left", padx=2)
+    
+    def setup_yolo_panel(self):
+        """Panel konfiguracji YOLO"""
+        self.yolo_panel = ctk.CTkFrame(self.content_frame)
+        self.yolo_panel.pack(pady=(5, 0), padx=10, fill="x")
+        
+        # Nagłówek YOLO
+        ctk.CTkLabel(
+            self.yolo_panel,
+            text=TEXTS['yolo_title'],
+            font=("Arial", 14, "bold")
+        ).pack(pady=(5, 10))
+        
+        # Ramka dla kontrolek YOLO
+        yolo_grid = ctk.CTkFrame(self.yolo_panel)
+        yolo_grid.pack(pady=5, padx=10, fill="x")
+        
+        # Wybór klasy obiektu
+        ctk.CTkLabel(yolo_grid, text=TEXTS['yolo_class'], width=80, anchor="w").grid(row=0, column=0, padx=5, pady=5)
+        self.class_combobox = ctk.CTkComboBox(
+            yolo_grid,
+            values=YOLO_CLASSES,
+            width=150,
+            command=self.on_class_selected
+        )
+        self.class_combobox.set("Wszystkie")
+        self.class_combobox.grid(row=0, column=1, padx=5, pady=5)
+        
+        # Suwak pewności
+        ctk.CTkLabel(yolo_grid, text=TEXTS['yolo_confidence'], width=80, anchor="w").grid(row=0, column=2, padx=5, pady=5)
+        self.confidence_slider = ctk.CTkSlider(
+            yolo_grid,
+            from_=0.1,
+            to=0.9,
+            number_of_steps=8,
+            width=150,
+            command=self.on_confidence_changed
+        )
+        self.confidence_slider.set(0.5)
+        self.confidence_slider.grid(row=0, column=3, padx=5, pady=5)
+        
+        # Etykieta wartości pewności
+        self.confidence_value = ctk.CTkLabel(yolo_grid, text="0.5")
+        self.confidence_value.grid(row=0, column=4, padx=5, pady=5)
+        
+        # Przyciski sterowania śledzeniem
+        button_frame = ctk.CTkFrame(self.yolo_panel)
+        button_frame.pack(pady=(0, 5))
+        
+        self.start_tracking_btn = ctk.CTkButton(
+            button_frame,
+            text=TEXTS['yolo_start'],
+            command=self.start_auto_tracking,
+            width=150,
+            height=30,
+            font=("Arial", 11),
+            fg_color=COLORS["success"]
+        )
+        self.start_tracking_btn.pack(side="left", padx=5)
+        
+        self.stop_tracking_btn = ctk.CTkButton(
+            button_frame,
+            text=TEXTS['yolo_stop'],
+            command=self.stop_auto_tracking,
+            width=150,
+            height=30,
+            font=("Arial", 11),
+            fg_color=COLORS["error"],
+            hover_color=COLORS["error_hover"],
+            state="disabled"
+        )
+        self.stop_tracking_btn.pack(side="left", padx=5)
+        
+        # Etykieta informacji o detekcji
+        self.detection_label = ctk.CTkLabel(
+            self.yolo_panel,
+            text=TEXTS['yolo_status_inactive'],
+            font=("Arial", 11)
+        )
+        self.detection_label.pack(pady=(0, 5))
         
         # Główna ramka dla zawartości trybów
         self.mode_frame = ctk.CTkFrame(self.content_frame)
         self.mode_frame.pack(pady=10, padx=10, fill="both", expand=True)
-        
-        # Inicjalizacja trybów
-        self.init_modes()
+    
+    def on_class_selected(self, choice):
+        """Obsługa wyboru klasy obiektu"""
+        self.app.object_detector.set_target_class(choice)
+    
+    def on_confidence_changed(self, value):
+        """Obsługa zmiany progu pewności"""
+        self.confidence_value.configure(text=f"{float(value):.2f}")
+        self.app.object_detector.set_confidence(float(value))
+    
+    def start_auto_tracking(self):
+        """Uruchomienie automatycznego śledzenia"""
+        if self.app.start_auto_tracking():
+            self.start_tracking_btn.configure(state="disabled")
+            self.stop_tracking_btn.configure(state="normal")
+            self.detection_label.configure(
+                text="Śledzenie aktywne",
+                text_color=COLORS["success"]
+            )
+    
+    def stop_auto_tracking(self):
+        """Zatrzymanie automatycznego śledzenia"""
+        self.app.stop_auto_tracking()
+        self.start_tracking_btn.configure(state="normal")
+        self.stop_tracking_btn.configure(state="disabled")
+        self.detection_label.configure(
+            text="Śledzenie zatrzymane",
+            text_color=COLORS["error"]
+        )
+    
+    def update_detection_info(self):
+        """Aktualizacja informacji o detekcji"""
+        if self.app.auto_tracking:
+            info = self.app.object_detector.get_detection_info()
+            self.detection_label.configure(text=f"Śledzenie: {info}")
         
     def init_modes(self):
-        """Inicjalizuj wszystkie tryby (jak w oryginalnym kodzie)"""
+        """Inicjalizuj wszystkie tryby"""
         # Tryb ręczny
         self.manual_frame = ctk.CTkFrame(self.mode_frame)
         
@@ -343,7 +468,7 @@ class UIManager:
         self.auto_container = ctk.CTkFrame(self.auto_frame)
         self.auto_container.pack(fill="both", expand=True, pady=5, padx=5)
         
-        # Stream (70% szerokości) - TEN SAM STREAM CO W MANUAL!
+        # Stream (70% szerokości)
         self.auto_stream_frame = ctk.CTkFrame(self.auto_container, width=SIZES["stream_width"])
         self.auto_stream_frame.pack(side="left", fill="both", expand=True, padx=(0, 10))
         self.auto_stream_frame.pack_propagate(False)
@@ -354,11 +479,11 @@ class UIManager:
             font=("Arial", 14, "bold")
         ).pack(pady=(10, 5))
         
-        # Ramka dla obrazu streamu - TEN SAM OBRAZ CO W MANUAL!
+        # Ramka dla obrazu streamu
         self.auto_image_container = ctk.CTkFrame(self.auto_stream_frame)
         self.auto_image_container.pack(pady=5, padx=10, fill="both", expand=True)
         
-        # Label do wyświetlania obrazu - TEN SAM LABEL CO W MANUAL!
+        # Label do wyświetlania obrazu
         self.auto_image_label = ctk.CTkLabel(self.auto_image_container, text="Stream nieaktywny", fg_color="gray20")
         self.auto_image_label.pack(pady=10, padx=10, fill="both", expand=True)
         
@@ -410,19 +535,17 @@ class UIManager:
             "   • Q - obrót kamery w lewo\n"
             "   • E - obrót kamery w prawo\n"
             "   • Można używać przycisków lub klawiszy\n\n"
-            "3. STEROWANIE AUTOMATYCZNE:\n"
-            "   • Program automatycznie śledzi obiekty\n"
-            "   • Wymaga aktywnego połączenia\n\n"
+            "3. DETEKCJA OBIEKTÓW (YOLO):\n"
+            "   • Wybierz klasę obiektu do śledzenia\n"
+            "   • Ustaw próg pewności\n"
+            "   • Kliknij 'Start Auto-Śledzenie'\n"
+            "   • System automatycznie wykryje i śledzi obiekty\n\n"
             "4. ROZWIĄZYWANIE PROBLEMÓW:\n"
             "   • Sprawdź połączenie sieciowe\n"
-            "   • Sprawdź logi w terminalu"
+            "   • Sprawdź logi w terminalu\n"
+            "   • Upewnij się że ultralytics jest zainstalowany"
         )
         instructions_text.configure(state="disabled", font=("Arial", 12))
-    
-    def init_mode_frames(self):
-        """Inicjalizacja ramek trybów"""
-        # Inicjalizacja już zrobiona w init_modes()
-        pass
     
     def setup_terminal(self):
         """Terminal wyjściowy"""
@@ -533,7 +656,7 @@ class UIManager:
         self.root.after(0, self._update_status, message, color)
     
     def _update_status(self, message, color):
-        """Aktualizacja statusu (wykonywane w głólnym wątku)"""
+        """Aktualizacja statusu (wykonywane w głównym wątku)"""
         self.status_label.configure(text=message, text_color=color)
     
     def update_video_frame(self, ctk_image, size):
@@ -558,10 +681,17 @@ class UIManager:
             # Zapisz referencję do obrazu
             self.auto_image_label.image_reference = ctk_image
         
+        # Aktualizuj rozmiar ramki dla śledzenia
+        self.last_frame_size = size
+        
         # Aktualizuj status z rozmiarem
         if hasattr(self, '_last_size') and self._last_size != size:
             self.update_status(f"Obraz: {size[0]}x{size[1]}", "green")
             self._last_size = size
+        
+        # Aktualizuj informacje o detekcji
+        if self.app.auto_tracking:
+            self.update_detection_info()
 
     def clear_stream_labels(self):
         """Wyczyść etykiety streamu"""
@@ -617,6 +747,10 @@ class UIManager:
     
     def disconnect_ssh(self):
         """Rozłączenie SSH"""
+        # Zatrzymaj automatyczne śledzenie
+        if self.app.auto_tracking:
+            self.stop_auto_tracking()
+        
         self.app.ssh_manager.disconnect()
         self.app.camera_stream.stop()
         self.connect_button.configure(state="normal", text="Połącz SSH")
