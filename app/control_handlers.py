@@ -3,58 +3,69 @@ class ControlHandlers:
         self.app = app
         
     def camera_left(self):
-        self.app.log_to_terminal("Kamera: Obrót w lewo")
-        self._send_control_command("CAM_LEFT")
+        """PAN w lewo (kanał 0)"""
+        self.app.log_to_terminal("PAN-TILT: Kamera w lewo")
+        self._send_pantilt_command("pan_left")
         self._animate_button_manual('Q')
         
     def camera_right(self):
-        self.app.log_to_terminal("Kamera: Obrót w prawo")
-        self._send_control_command("CAM_RIGHT")
+        """PAN w prawo (kanał 0)"""
+        self.app.log_to_terminal("PAN-TILT: Kamera w prawo")
+        self._send_pantilt_command("pan_right")
         self._animate_button_manual('E')
         
     def laser_up(self):
-        self.app.log_to_terminal("Laser: Ruch w górę")
-        self._send_control_command("LASER_UP")
+        """TILT w górę (kanał 1)"""
+        self.app.log_to_terminal("PAN-TILT: Laser w górę")
+        self._send_pantilt_command("tilt_up")
         self._animate_button_manual('UP')
         
     def laser_down(self):
-        self.app.log_to_terminal("Laser: Ruch w dół")
-        self._send_control_command("LASER_DOWN")
+        """TILT w dół (kanał 1)"""
+        self.app.log_to_terminal("PAN-TILT: Laser w dół")
+        self._send_pantilt_command("tilt_down")
         self._animate_button_manual('DOWN')
         
     def laser_left(self):
-        self.app.log_to_terminal("Laser: Ruch w lewo")
-        self._send_control_command("LASER_LEFT")
+        """PAN w lewo dla lasera (kanał 0)"""
+        self.app.log_to_terminal("PAN-TILT: Laser w lewo")
+        self._send_pantilt_command("pan_left")
         self._animate_button_manual('LEFT')
         
     def laser_right(self):
-        self.app.log_to_terminal("Laser: Ruch w prawo")
-        self._send_control_command("LASER_RIGHT")
+        """PAN w prawo dla lasera (kanał 0)"""
+        self.app.log_to_terminal("PAN-TILT: Laser w prawo")
+        self._send_pantilt_command("pan_right")
         self._animate_button_manual('RIGHT')
     
-    def _send_control_command(self, command):
-        """Wysłanie komendy sterującej do Raspberry Pi"""
+    def _send_pantilt_command(self, command):
+        """Wysyła komendę do Pan-Tilt HAT na Raspberry Pi"""
         ssh_manager = self.app.get_ssh_manager()
+        
         if ssh_manager and ssh_manager.is_connected:
-            # Przykładowe komendy - dostosuj do swojego projektu
-            command_map = {
-                "CAM_LEFT": "echo 'CAM_LEFT' > /tmp/control_pipe",
-                "CAM_RIGHT": "echo 'CAM_RIGHT' > /tmp/control_pipe",
-                "LASER_UP": "echo 'LASER_UP' > /tmp/control_pipe",
-                "LASER_DOWN": "echo 'LASER_DOWN' > /tmp/control_pipe",
-                "LASER_LEFT": "echo 'LASER_LEFT' > /tmp/control_pipe",
-                "LASER_RIGHT": "echo 'LASER_RIGHT' > /tmp/control_pipe"
-            }
-            
-            if command in command_map:
-                result = ssh_manager.execute_command(command_map[command])
+            try:
+                # Uruchom skrypt Python na Raspberry Pi
+                ssh_command = f"python3 /home/jamnik/pan_tilt_control.py {command}"
+                result = ssh_manager.execute_command(ssh_command)
+                
                 if result:
-                    self.app.log_to_terminal(f"Odpowiedź: {result}")
+                    # Pokaż wynik w terminalu
+                    lines = result.strip().split('\n')
+                    if lines:
+                        self.app.log_to_terminal(f"RPi: {lines[-1]}")
+                    else:
+                        self.app.log_to_terminal(f"Wykonano: {command}")
+                else:
+                    self.app.log_to_terminal(f"Wykonano: {command}")
+                    
+            except Exception as e:
+                self.app.log_to_terminal(f"Błąd wysyłania komendy: {str(e)}")
         else:
-            self.app.log_to_terminal(f"[SYMULACJA] Wysłano komendę: {command}")
+            # Symulacja gdy brak połączenia
+            self.app.log_to_terminal(f"[SYMULACJA] Pan-Tilt: {command}")
     
     def _animate_button_manual(self, key):
-        """Ręczna animacja przycisku (dla kliknięć myszą)"""
+        """Animacja przycisku po kliknięciu myszą"""
         ui = self.app.ui_manager
         if key in ui.key_buttons:
             ui.animate_button_press(ui.key_buttons[key])
